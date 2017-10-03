@@ -1,6 +1,8 @@
 ﻿using SQLiteCreation.Parsers.Base;
 using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.SQLite;
 using System.Globalization;
 using System.Text;
 
@@ -8,12 +10,14 @@ namespace SQLiteCreation.Parsers
 {
     class DataVerificationStrategy : IDataVerificationStrategy
     {
+        public int ParametersCount { get; } = 4;
+
         //Хэшсет служит для того, чтобы проверять на уникальность считанные данные столбца "id"
         private HashSet<int> idSet = new HashSet<int>();
         //Нижний предел даты в таблице. С ним будут сравниваться на валидность считанные данные столбца "dt"
         private DateTime startDate = new DateTime(1970, 1, 1);
 
-        public bool Verify(Dictionary<string, int> columnPosition, string[] inputData, int counter, ref string message)
+        public bool Verify(Dictionary<string, int> columnPosition, string[] inputData, SQLiteParameter[] parameters, int counter, ref string message)
         {
             StringBuilder errorString = new StringBuilder();
 
@@ -21,10 +25,10 @@ namespace SQLiteCreation.Parsers
             {
                 Rearrange(columnPosition, inputData);
 
-                IdVerification(inputData, errorString);
-                DTVerification(inputData, errorString);
-                ProductIdVerification(inputData, errorString);
-                AmountVerification(inputData, errorString);
+                IdVerification(inputData, errorString, parameters);
+                DTVerification(inputData, errorString, parameters);
+                ProductIdVerification(inputData, errorString, parameters);
+                AmountVerification(inputData, errorString, parameters);
             }
             else
                 errorString.Append("- отсутствуют некоторые столбцы с данными" + Environment.NewLine);
@@ -37,7 +41,7 @@ namespace SQLiteCreation.Parsers
             else return true;
         }
 
-        private void IdVerification(string[] inputData, StringBuilder errorMessage)
+        private void IdVerification(string[] inputData, StringBuilder errorMessage, SQLiteParameter[] parameters)
         {
             int id = 0;
             int position = 0; //id
@@ -57,9 +61,11 @@ namespace SQLiteCreation.Parsers
             {
                 errorMessage.Append("- id имеет неуникальное значение" + Environment.NewLine);
             }
+            else
+                parameters[0] = new SQLiteParameter("1", DbType.Int32) { Value=id};
         }
 
-        private void DTVerification(string[] inputData, StringBuilder errorMessage)
+        private void DTVerification(string[] inputData, StringBuilder errorMessage, SQLiteParameter[] parameters)
         {
             DateTime dt;
             int position = 1; //dt
@@ -79,12 +85,11 @@ namespace SQLiteCreation.Parsers
             {
                 errorMessage.Append("- Указанная дата еще не наступила" + Environment.NewLine);
             }
-
-            //Пишем дату в буфер в том формате, в котором ее понимает SQLite
-            inputData[position] = dt.ToString("s"); //увеличивает время обработки ~на 5,5сек
+            else
+                parameters[1] = new SQLiteParameter("2", DbType.DateTime) { Value = dt };
         }
 
-        private void ProductIdVerification(string[] inputData, StringBuilder errorMessage)
+        private void ProductIdVerification(string[] inputData, StringBuilder errorMessage, SQLiteParameter[] parameters)
         {
             int productId = 0;
             int position = 2; //product_id
@@ -100,9 +105,11 @@ namespace SQLiteCreation.Parsers
             {
                 errorMessage.Append("- product_id не является значением id из таблицы \"product\"" + Environment.NewLine);
             }
+            else
+                parameters[2] = new SQLiteParameter("3", DbType.Int32) { Value = productId };
         }
 
-        private void AmountVerification(string[] inputData, StringBuilder errorMessage)
+        private void AmountVerification(string[] inputData, StringBuilder errorMessage, SQLiteParameter[] parameters)
         {
             //Флаг того, что распознать значение amount не удалось
             bool amountFail = false;
@@ -125,6 +132,8 @@ namespace SQLiteCreation.Parsers
             {
                 errorMessage.Append("- amount имеет отрицательное значение" + Environment.NewLine);
             }
+            else
+                parameters[3] = new SQLiteParameter("4", DbType.Single) { Value = amount };
         }
 
         private void Rearrange(Dictionary<string, int> columnPosition, string[] inputData)

@@ -9,19 +9,12 @@ namespace SQLiteCreation
         static void Main()
         {
             string name = "WriteLines.tsv";
-            /*
-            DBWorker worker = new DBWorker(name, 13500);
-            
-            worker.CreateAndFillDB();
-            
-            Console.ReadLine();
-            */
 
             string message = $"------------------------------------------------------------------{Environment.NewLine}"
                             + $"Приложение запущено{Environment.NewLine}" +
                             $"------------------------------------------------------------------{Environment.NewLine}";
 
-            IController controller = new Controller(name, 10000);
+            IController controller = new Controller(name, 30000);
             controller.SendData(message);
             controller.SendData($"Выполняется заполнение базы данных{Environment.NewLine}");
             controller.FillDataBase();

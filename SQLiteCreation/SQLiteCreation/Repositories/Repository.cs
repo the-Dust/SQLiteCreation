@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
+using System.Globalization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,34 +19,36 @@ namespace SQLiteCreation.Repositories
         public event Action<object, string> OnError = (object o, string s) => { };
         public DBContext Context { get { return context; } }
 
+        //Размер добавленной пачки строк, при котором происходит оповещение
+        private int cycleSize = 30000;
+
         public Repository(string dbName) : base(dbName)
         {
         }
 
-        public void DBFill(IEnumerable<string[]> input, int cycleSize)
+        public void DBFill(IEnumerable<SQLiteParameter[]> input)
         {
             DBFillMain(input, cycleSize, null);
         }
 
-        public void DBFill(ConcurrentQueue<string[]> input, int cycleSize, CancellationTokenSource cts)
+        public void DBFill(ConcurrentQueue<SQLiteParameter[]> input, CancellationTokenSource cts)
         {
             DBFillMain(input, cycleSize, cts);
         }
 
-        public void DBFill(IParser parser, int cycleSize)
+        public void DBFill(IParser parser)
         {
             DateTime startOfProcess = DateTime.Now;
             
             Task t1 = parser.ParseAsync();
-            Task t2 = Task.Run(() => DBFill(parser.StringArrayQueue, cycleSize, parser.Cts));
+            Task t2 = Task.Run(() => DBFill(parser.ParametersQueue, parser.Cts));
             Task.WaitAll(t1, t2);
             
-
             OnEvent(this, $"Операция заполнения базы данных завершена успешно.{Environment.NewLine}" +
                 $"Время выполнения операции (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
         }
 
-        private void DBFillMain(IEnumerable<string[]> input, int cycleSize, CancellationTokenSource cts)
+        private void DBFillMain(IEnumerable<SQLiteParameter[]> input, int cycleSize, CancellationTokenSource cts)
         {
             context.DBConnection.Open();
             //Счетчик циклов, сколько пачек строк уже добавили
@@ -53,19 +56,17 @@ namespace SQLiteCreation.Repositories
             //Количество валидных строк в текущем цикле
             int stepOfCurrentCycle = 0;
 
-            //ExecuteInnerQuery("PRAGMA synchronous = OFF;PRAGMA journal_mode = OFF;BEGIN; ");
-
-            StringBuilder sb = new StringBuilder(context.InsertionString);
+            ExecuteInnerQuery("PRAGMA synchronous = OFF;PRAGMA journal_mode = OFF; ");
 
             Func<bool> Condition;
-            Func<string[]> GetData;
+            Func<SQLiteParameter[]> GetData;
 
-            if (input is ConcurrentQueue<string[]>)
+            if (input is ConcurrentQueue<SQLiteParameter[]>)
             {
-                var queue = (ConcurrentQueue<string[]>)input;
+                var queue = (ConcurrentQueue<SQLiteParameter[]>)input;
                 Condition = () => !(cts.IsCancellationRequested && queue.Count == 0);
                 GetData = () => {
-                                    string[] currentArr;
+                                    SQLiteParameter[] currentArr;
                                     while (!queue.TryDequeue(out currentArr)) { }
                                     return currentArr;
                                 };
@@ -76,37 +77,38 @@ namespace SQLiteCreation.Repositories
                 GetData = () =>input.GetEnumerator().Current;
             }
 
-            while (Condition())
+            using (SQLiteTransaction transaction = context.DBConnection.BeginTransaction())
             {
-                string[] currentArr = GetData();
-                sb.Append(string.Format(context.InsertionTemplate,  currentArr));
-                stepOfCurrentCycle++;
-                //Как только набралась пачка строк заданного размера, добавляем ее
-                if (stepOfCurrentCycle == cycleSize)
+                using (SQLiteCommand command = new SQLiteCommand(context.DBConnection))
                 {
-                    numberOfCycles++;
-                    string message = $"\rДобавлено строк: {numberOfCycles * cycleSize}";
-                    AddData(sb, message, ref stepOfCurrentCycle);
-                    sb.Append(context.InsertionString);
-                }
-            }
-            //Добавляем оставшиеся последние строки
-            if (stepOfCurrentCycle != 0)
-            {
-                string message = $"\rДобавлено строк: {numberOfCycles * cycleSize + stepOfCurrentCycle}{Environment.NewLine}";
-                AddData(sb, message, ref stepOfCurrentCycle);
-            }
-            //ExecuteInnerQuery("COMMIT;PRAGMA synchronous = NORMAL; PRAGMA journal_mode = DELETE; ");
-            context.DBConnection.Close();
-        }
+                    command.CommandText = "insert into 'order' (id, dt, product_id, amount) values (?1, ?2, ?3, ?4)";
 
-        private void AddData(StringBuilder sb, string message, ref int step)
-        {
-            step = 0;
-            string execute = sb.Replace(',', ';', sb.Length - 1, 1).ToString();
-            ExecuteInnerQuery(execute);
-            sb.Clear();
-            OnEvent(this, message);
+                    while (Condition())
+                    {
+                        command.Parameters.AddRange(GetData());
+                        command.ExecuteNonQuery();
+                        stepOfCurrentCycle++;
+                        //Оповещаем о добавлении пачки строк
+                        if (stepOfCurrentCycle == cycleSize)
+                        {
+                            string message = $"\rДобавлено строк: {numberOfCycles * cycleSize}";
+                            OnEvent(this, message);
+                            numberOfCycles++;
+                            stepOfCurrentCycle = 0;
+                        }
+                    }
+                    //Оповещаем о добавлении всех строк
+                    if (stepOfCurrentCycle != 0)
+                    {
+                        string message = $"\rДобавлено строк: {numberOfCycles * cycleSize + stepOfCurrentCycle}{Environment.NewLine}";
+                        OnEvent(this, message);
+                    }
+                }
+                transaction.Commit();
+
+            }
+            ExecuteInnerQuery("PRAGMA synchronous = NORMAL; PRAGMA journal_mode = DELETE; ");
+            context.DBConnection.Close();
         }
 
         public void ExecuteQuery(string query)
@@ -122,8 +124,10 @@ namespace SQLiteCreation.Repositories
 
         private void ExecuteInnerQuery(string query)
         {
-            SQLiteCommand command = new SQLiteCommand(query, context.DBConnection);
-            command.ExecuteNonQuery();
+            using (SQLiteCommand command = new SQLiteCommand(query, context.DBConnection))
+            {
+                command.ExecuteNonQuery();
+            }
         }
 
         public DataTable ExecuteQueryResult(string query)
@@ -131,9 +135,12 @@ namespace SQLiteCreation.Repositories
             DateTime startOfProcess = DateTime.Now;
 
             context.DBConnection.Open();
-            SQLiteCommand command = new SQLiteCommand(query, context.DBConnection);
+            
             DataTable table = new DataTable();
-            table.Load(command.ExecuteReader());
+            using (SQLiteCommand command = new SQLiteCommand(query, context.DBConnection))
+            {
+                table.Load(command.ExecuteReader());
+            }
             context.DBConnection.Close();
 
             OnEvent(this, $"Время выполнения запроса (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");

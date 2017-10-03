@@ -4,15 +4,16 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Data;
+using System.Data.SQLite;
 using System.Threading;
 
 namespace SQLiteCreation.Repositories.Base
 {
     interface IRepository
     {
-        void DBFill(IEnumerable<string[]> array, int cycleSize);
-        void DBFill(ConcurrentQueue<string[]> queue, int cycleSize, CancellationTokenSource cts);
-        void DBFill(IParser parser, int cycleSize);
+        void DBFill(IEnumerable<SQLiteParameter[]> array);
+        void DBFill(ConcurrentQueue<SQLiteParameter[]> queue, CancellationTokenSource cts);
+        void DBFill(IParser parser);
         void ExecuteQuery(string query);
         DataTable ExecuteQueryResult(string query);
         DataTable ExecuteQueryResult(StandardQueries query);

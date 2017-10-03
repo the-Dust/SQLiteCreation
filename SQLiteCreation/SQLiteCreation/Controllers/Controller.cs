@@ -33,7 +33,7 @@ namespace SQLiteCreation.Controllers
 
         public void FillDataBase()
         {
-            repository.DBFill(parser, cycleSize);
+            repository.DBFill(parser);
         }
 
         public void ErrorHandling(object sender, string message)

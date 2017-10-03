@@ -3,6 +3,7 @@ using SQLiteCreation.Parsers.Base;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Data.SQLite;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -12,7 +13,7 @@ namespace SQLiteCreation.Parsers
 {
     class Parser : IParser
     {
-        public ConcurrentQueue<string[]> StringArrayQueue { get; private set; }
+        public ConcurrentQueue<SQLiteParameter[]> ParametersQueue { get; private set; }
         public CancellationTokenSource Cts { get; } = new CancellationTokenSource(); 
         public event Action<object, string> OnError = (object o, string s) => { };
         public event Action<object, string> OnFatalError = (object o, string s) => { };
@@ -25,7 +26,6 @@ namespace SQLiteCreation.Parsers
         
         public Parser(string pathToFile, string[] parserDelimiters, string[] headers, IDataVerificationStrategy dvs)
         {
-            
             try
             {
                 tsvReader = new TextFieldParser(pathToFile);
@@ -65,8 +65,9 @@ namespace SQLiteCreation.Parsers
 
                 sourceCounter++;
 
+                SQLiteParameter[] parameters = new SQLiteParameter[dvs.ParametersCount];
                 //Проверяем данные в считанной строке, при наличии ошибок выводим их на консоль и пишем в лог ошибок
-                if (!dvs.Verify(ColumnNameAndPosition, parsedStringArray, sourceCounter, ref errorMessage))
+                if (!dvs.Verify(ColumnNameAndPosition, parsedStringArray, parameters, sourceCounter, ref errorMessage))
                 {
                     using (StreamWriter file = new StreamWriter(string.Format(@"errorlog_{0}.txt", DateTime.Now.ToString(@"dd-MM-yyyy_HH-mm.ss")), true))
                     {
@@ -77,7 +78,7 @@ namespace SQLiteCreation.Parsers
                 }
 
                 //Если в строке нет ошибок, добавляем данные из нее к sql запросу
-                StringArrayQueue.Enqueue(parsedStringArray);
+                ParametersQueue.Enqueue(parameters);
             }
             Cts.Cancel();
         }
@@ -89,7 +90,7 @@ namespace SQLiteCreation.Parsers
 
         private void SettingUp()
         {
-            StringArrayQueue = new ConcurrentQueue<string[]>();
+            ParametersQueue = new ConcurrentQueue<SQLiteParameter[]>();
 
             //Настраиваем парсер
             tsvReader.SetDelimiters(parserDelimiters);
