@@ -19,9 +19,10 @@ namespace SQLiteCreation.DataWiewers
         public void ViewData(DataTable table)
         {
             StringBuilder sb = new StringBuilder();
+            sb.Append($"{Environment.NewLine}");
 
             if (table.Rows.Count < 1)
-                sb.Append($"{Environment.NewLine}Таблица не содержит строк{Environment.NewLine}");
+                sb.Append($"Таблица не содержит строк{Environment.NewLine}");
             else
             {
                 foreach (DataColumn column in table.Columns)

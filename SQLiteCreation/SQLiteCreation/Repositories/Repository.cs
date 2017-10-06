@@ -29,11 +29,13 @@ namespace SQLiteCreation.Repositories
         public void DBFill(IEnumerable<SQLiteParameter[]> input)
         {
             DBFillMain(input, cycleSize, null);
+            CreateIndexes();
         }
 
         public void DBFill(ConcurrentQueue<SQLiteParameter[]> input, CancellationTokenSource cts)
         {
             DBFillMain(input, cycleSize, cts);
+            CreateIndexes();
         }
 
         public void DBFill(IParser parser)
@@ -44,8 +46,11 @@ namespace SQLiteCreation.Repositories
             Task t2 = Task.Run(() => DBFill(parser.ParametersQueue, parser.Cts));
             Task.WaitAll(t1, t2);
             
+            //parser.Parse();
+            //DBFill(parser.ParametersQueue, parser.Cts);
+
             OnEvent(this, $"Операция заполнения базы данных завершена успешно.{Environment.NewLine}" +
-                $"Время выполнения операции (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
+                $"Время заполнения базы (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
         }
 
         private void DBFillMain(IEnumerable<SQLiteParameter[]> input, int cycleSize, CancellationTokenSource cts)
@@ -67,7 +72,7 @@ namespace SQLiteCreation.Repositories
                 Condition = () => !(cts.IsCancellationRequested && queue.Count == 0);
                 GetData = () => {
                                     SQLiteParameter[] currentArr;
-                                    while (!queue.TryDequeue(out currentArr)) { }
+                                    while (!queue.TryDequeue(out currentArr)) { if (!Condition()) break; }
                                     return currentArr;
                                 };
             }
@@ -81,12 +86,15 @@ namespace SQLiteCreation.Repositories
             {
                 using (SQLiteCommand command = new SQLiteCommand(context.DBConnection))
                 {
-                    command.CommandText = "insert into 'order' (id, dt, product_id, amount) values (?1, ?2, ?3, ?4)";
-
+                    command.CommandText = context.InsertionString;
                     while (Condition())
                     {
-                        command.Parameters.AddRange(GetData());
+                        SQLiteParameter[] currentArr = GetData();
+                        if (currentArr == null)
+                            break;
+                        command.Parameters.AddRange(currentArr);
                         command.ExecuteNonQuery();
+
                         stepOfCurrentCycle++;
                         //Оповещаем о добавлении пачки строк
                         if (stepOfCurrentCycle == cycleSize)
@@ -108,6 +116,7 @@ namespace SQLiteCreation.Repositories
 
             }
             ExecuteInnerQuery("PRAGMA synchronous = NORMAL; PRAGMA journal_mode = DELETE; ");
+            
             context.DBConnection.Close();
         }
 
@@ -120,6 +129,16 @@ namespace SQLiteCreation.Repositories
             context.DBConnection.Close();
 
             OnEvent(this, $"Время выполнения запроса (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
+        }
+
+        private void CreateIndexes()
+        {
+            DateTime startOfProcess = DateTime.Now;
+
+            OnEvent(this, "Индексируем базу...");
+            context.CreateIndexes();
+
+            OnEvent(this, $"Готово.{Environment.NewLine}Время индексирования (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
         }
 
         private void ExecuteInnerQuery(string query)
@@ -153,46 +172,33 @@ namespace SQLiteCreation.Repositories
             string queryResult;
             string queryCondition;
 
-            string queryCondition1 = string.Format("1 Вывести количество и сумму заказов по каждому продукту за {0}текущий месяц{0}", Environment.NewLine);
-            string queryCondition2a = string.Format("2a Вывести все продукты, которые были заказаны в текущем {0}месяце, но которых не было в прошлом.{0}", Environment.NewLine);
-            string queryCondition2b = string.Format("2b Вывести все продукты, которые были только в прошлом месяце,{0}но не в текущем, и которые были в текущем месяце, но не в прошлом.{0}", Environment.NewLine);
-            string queryCondition3 = string.Format("3 Помесячно вывести продукт, по которому была максимальная сумма{0}заказов за этот период, сумму по этому продукту и его долю от{0}общего объема за этот период.{0}", Environment.NewLine);
+            string queryCondition1 = string.Format("{0}1 Вывести количество и сумму заказов по каждому продукту за {0}текущий месяц{0}", Environment.NewLine);
+            string queryCondition2a = string.Format("{0}2a Вывести все продукты, которые были заказаны в текущем {0}месяце, но которых не было в прошлом.{0}", Environment.NewLine);
+            string queryCondition2b = string.Format("{0}2b Вывести все продукты, которые были только в прошлом месяце,{0}но не в текущем, и которые были в текущем месяце, но не в прошлом.{0}", Environment.NewLine);
+            string queryCondition3 = string.Format("{0}3 Помесячно вывести продукт, по которому была максимальная сумма{0}заказов за этот период, сумму по этому продукту и его долю от{0}общего объема за этот период.{0}", Environment.NewLine);
 
             string query1 = "select product.name as `Продукт`, count(*) as `Кол-во заказов`, sum(`order`.amount) " +
                              "as `Сумма заказов`  from 'order' join product on `product`.id = `order`.product_id " +
-                             "where strftime('%Y-%m', dt) = strftime('%Y-%m', 'now') group by product.name";
+                             "where dt_month = strftime('%Y-%m', 'now') group by product.name";
 
-            string query2a = "select distinct product.name as `Продукт` from 'order' " +
-                            "join product on `product`.id = `order`.product_id " +
-                            "where strftime('%Y-%m', dt) = strftime('%Y-%m', 'now') " +
-                            "except " +
-                            "select distinct product.name as `Продукт` from 'order' " +
-                            "join product on `product`.id = `order`.product_id " +
-                            "where strftime('%Y-%m', dt) = strftime('%Y-%m', 'now', '-1 month')";
+            string tempTable = "select distinct `product`.id as id1, product.name as name1 from 'order' "+
+                                "join product on `order`.product_id = `product`.id " +
+                                "where dt_month = strftime('%Y-%m', 'now'{0}) ";
 
-            string query2b = "select name2 as `Прошлый месяц`, name3 as `Текущий месяц` from product " +
-                            "left outer join " +
-                            "(select distinct `product`.id as id1, product.name as name2 from 'order' " +
-                            "join product on `product`.id = `order`.product_id " +
-                            "where strftime('%Y-%m', dt) = strftime('%Y-%m', 'now', '-1 month') " +
-                            "except " +
-                            "select distinct `product`.id as id1, product.name as name2 from 'order' " +
-                            "join product on `product`.id = `order`.product_id " +
-                            "where strftime('%Y-%m', dt) = strftime('%Y-%m', 'now')) " +
-                            "on id1 = product.id " +
-                            "left outer join " +
-                            "(select distinct `product`.id as id2, product.name as name3 from 'order' " +
-                            "join product on `product`.id = `order`.product_id " +
-                            "where strftime('%Y-%m', dt) = strftime('%Y-%m', 'now') " +
-                            "except " +
-                            "select distinct `product`.id as id2, product.name as name3 from 'order' " +
-                            "join product on `product`.id = `order`.product_id " +
-                            "where strftime('%Y-%m', dt) = strftime('%Y-%m', 'now', '-1 month')) " +
-                            "on id2 = product.id where name2 not null or name3 not null";
+            string subQuery = "with lastMonth as (" + string.Format(tempTable, ", '-1 month'") +
+                                "), thisMonth as (" + string.Format(tempTable, "") + ") ";
+
+            string query2a = subQuery + "select name1 as `Продукт` from (select * from thisMonth except select * from lastMonth)";
+
+            string query2b = subQuery + "select name1 as `Прошлый месяц`, name2 as `Текущий месяц` from product " +
+                            "left outer join (select * from lastMonth except select * from thisMonth) " +
+                            "on product.id = id1 left outer join " +
+                            "(select id1 as id2, name1 as name2 from thisMonth except select * from lastMonth) " +
+                            "on product.id = id2 where name1 not null or name2 not null ";
 
             string query3 = "select period as `Период`, product_name as `Продукт`, round(max(total_amount),4) as `Сумма`, round(max(total_amount)*100/sum(total_amount),2) as `Доля,%` " +
                             "from(select strftime('%Y-%m', dt) as period, sum(amount) as total_amount, product.name as product_name from `order` " +
-                            "join product on `product`.id = `order`.product_id group by product.name, strftime('%Y-%m', dt) order by strftime('%Y-%m', dt) asc) group by period order by period asc; ";
+                            "join product on `product`.id = `order`.product_id group by product_id, dt_month order by dt_month asc) group by period; ";
 
             switch (query)
             {
@@ -217,7 +223,7 @@ namespace SQLiteCreation.Repositories
                     break;
             }
 
-            OnEvent(this, queryCondition);
+            OnEvent(this, $"{queryCondition}Выполняется запрос...{Environment.NewLine}");
             return ExecuteQueryResult(queryResult);
         }
     }

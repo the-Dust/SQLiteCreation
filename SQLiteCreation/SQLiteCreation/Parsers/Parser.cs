@@ -49,6 +49,7 @@ namespace SQLiteCreation.Parsers
             //Счетчик всех считанных строк, нужен чтобы отображать, в какой строке текстового файла присутствует ошибка
             int sourceCounter = 0;
 
+            StreamWriter sw = new StreamWriter(string.Format(@"errorlog_{0}.txt", DateTime.Now.ToString(@"dd-MM-yyyy_HH-mm.ss")), true);
             while (!tsvReader.EndOfData)
             {
                 try
@@ -69,18 +70,16 @@ namespace SQLiteCreation.Parsers
                 //Проверяем данные в считанной строке, при наличии ошибок выводим их на консоль и пишем в лог ошибок
                 if (!dvs.Verify(ColumnNameAndPosition, parsedStringArray, parameters, sourceCounter, ref errorMessage))
                 {
-                    using (StreamWriter file = new StreamWriter(string.Format(@"errorlog_{0}.txt", DateTime.Now.ToString(@"dd-MM-yyyy_HH-mm.ss")), true))
-                    {
-                        OnError(this, errorMessage);
-                        file.WriteLine(errorMessage);
-                        continue;
-                    }
+                    OnError(this, errorMessage);
+                    sw.WriteLine(errorMessage);
+                    continue;
                 }
 
                 //Если в строке нет ошибок, добавляем данные из нее к sql запросу
                 ParametersQueue.Enqueue(parameters);
             }
-            Cts.Cancel();
+
+            sw.Close();
         }
 
         public async Task ParseAsync()

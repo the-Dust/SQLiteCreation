@@ -86,7 +86,9 @@ namespace SQLiteCreation.Parsers
                 errorMessage.Append("- Указанная дата еще не наступила" + Environment.NewLine);
             }
             else
+            {
                 parameters[1] = new SQLiteParameter("2", DbType.DateTime) { Value = dt };
+            }
         }
 
         private void ProductIdVerification(string[] inputData, StringBuilder errorMessage, SQLiteParameter[] parameters)

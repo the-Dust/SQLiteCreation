@@ -8,7 +8,7 @@ namespace SQLiteCreation.Context
         public event Action<object, string> OnFatalError = (object o, string s) => { };
         public SQLiteConnection DBConnection { get; private set; }
         public string[] Headers { get; } = { "id", "dt", "product_id", "amount" };
-        public string InsertionString { get; } = $"insert into 'order' (id, dt, product_id, amount) values ";
+        public string InsertionString { get; } = "insert into 'order' (id, dt, product_id, amount, dt_month) values (?1, ?2, ?3, ?4, strftime('%Y-%m', ?2))";
         public string InsertionTemplate { get; } = "({0},'{1}',{2},{3}),";
 
         public DBContext(string dbName = "MyDatabase.sqlite")
@@ -25,6 +25,17 @@ namespace SQLiteCreation.Context
             }
         }
 
+        public void CreateIndexes()
+        {
+            DBConnection.Open();
+            using (SQLiteCommand command = new SQLiteCommand(DBConnection))
+            {
+                command.CommandText = $"CREATE INDEX dt_index ON 'order' ({Headers[1]}_month, product_id);";
+                command.ExecuteNonQuery();
+            }
+            DBConnection.Close();
+        }
+
         private void DBSetup(string dbName)
         {
             SQLiteConnection.CreateFile(dbName);
@@ -32,26 +43,19 @@ namespace SQLiteCreation.Context
             DBConnection = new SQLiteConnection($"Data Source={dbName};Version=3;");
 
             DBConnection.Open();
+            using (SQLiteCommand command = new SQLiteCommand(DBConnection))
+            { 
+                //Создаем и заполняем таблицу product по условию задачи
+                command.CommandText = "CREATE TABLE product (id int primary key not null, name text) without rowid";
+                command.ExecuteNonQuery();
+            
+                command.CommandText = "insert into product values (1, 'A'), (2, 'B'), (3, 'C'), (4, 'D'), (5, 'E'), (6, 'F'), (7, 'G');";
+                command.ExecuteNonQuery();
 
-            //Создаем и заполняем таблицу product по условию задачи
-            string sql = "CREATE TABLE product (id int primary key not null, name text) without rowid";
-            SQLiteCommand command = new SQLiteCommand(sql, DBConnection);
-            command.ExecuteNonQuery();
-
-            sql = "insert into product values (1, 'A'), (2, 'B'), (3, 'C'), (4, 'D'), (5, 'E'), (6, 'F'), (7, 'G');";
-            command = new SQLiteCommand(sql, DBConnection);
-            command.ExecuteNonQuery();
-
-            //Создаем и заполняем таблицу order
-            sql = $"CREATE TABLE 'order' ({Headers[0]} int primary key not null, {Headers[1]} datetime not null, {Headers[2]} int not null, {Headers[3]} real not null, foreign key(product_id) references product(id))";
-            command = new SQLiteCommand(sql, DBConnection);
-            command.ExecuteNonQuery();
-            /*
-            //Индексируем столбцы таблицы order
-            sql = $"CREATE INDEX index1 ON 'order' ({Headers[2]});";
-            command = new SQLiteCommand(sql, DBConnection);
-            command.ExecuteNonQuery();
-            */
+                //Создаем и заполняем таблицу order
+                command.CommandText = $"CREATE TABLE 'order' ({Headers[0]} int primary key not null, {Headers[1]} datetime not null, {Headers[2]} int not null, {Headers[3]} real not null, {Headers[1]}_month datetime, foreign key(product_id) references product(id))";
+                command.ExecuteNonQuery();
+            }
             DBConnection.Close();
         }
     }
