@@ -19,6 +19,7 @@ namespace SQLiteCreation.Repositories
 
         //Размер добавленной пачки строк, при котором происходит оповещение
         private int cycleSize;
+        private string messageOnError = $"При обращении к базе возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}";
 
         public Repository(IDBContext context, int cycleSize) : base(context)
         {
@@ -27,13 +28,29 @@ namespace SQLiteCreation.Repositories
 
         public void DBFill(IEnumerable<SQLiteParameter[]> input)
         {
-            DBFillMain(input, cycleSize, null);
+            try
+            {
+                DBFillMain(input, cycleSize, null);
+            }
+            catch (Exception ex)
+            {
+                string message = $"При заполнении базы возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}";
+                OnError(this, messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено.");
+            }
             CreateIndexes();
         }
 
         public void DBFill(ConcurrentQueue<SQLiteParameter[]> input, CancellationTokenSource cts)
         {
-            DBFillMain(input, cycleSize, cts);
+            try
+            {
+                DBFillMain(input, cycleSize, cts);
+            }
+            catch (Exception ex)
+            {
+                string message = $"При заполнении базы возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}";
+                OnError(this, messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено.");
+            }
             CreateIndexes();
         }
 
@@ -44,9 +61,6 @@ namespace SQLiteCreation.Repositories
             Task t1 = parser.ParseAsync();
             Task t2 = Task.Run(() => DBFill(parser.ParametersQueue, parser.Cts));
             Task.WaitAll(t1, t2);
-            
-            //parser.Parse();
-            //DBFill(parser.ParametersQueue, parser.Cts);
 
             OnEvent(this, $"Операция заполнения базы данных завершена успешно.{Environment.NewLine}" +
                 $"Время заполнения базы (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
@@ -68,7 +82,7 @@ namespace SQLiteCreation.Repositories
             if (input is ConcurrentQueue<SQLiteParameter[]>)
             {
                 var queue = (ConcurrentQueue<SQLiteParameter[]>)input;
-                Condition = () => !(cts.IsCancellationRequested && queue.Count == 0);
+                Condition = () => !(cts.IsCancellationRequested && queue.IsEmpty);
                 GetData = () => {
                                     SQLiteParameter[] currentArr;
                                     while (!queue.TryDequeue(out currentArr)) { if (!Condition()) break; }
@@ -124,7 +138,14 @@ namespace SQLiteCreation.Repositories
             DateTime startOfProcess = DateTime.Now;
 
             context.DBConnection.Open();
-            ExecuteInnerQuery(query);
+            try
+            {
+                ExecuteInnerQuery(query);
+            }
+            catch (Exception ex)
+            {
+                OnError(this, messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено.");
+            }
             context.DBConnection.Close();
 
             OnEvent(this, $"Время выполнения запроса (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
@@ -157,7 +178,14 @@ namespace SQLiteCreation.Repositories
             DataTable table = new DataTable();
             using (SQLiteCommand command = new SQLiteCommand(query, context.DBConnection))
             {
-                table.Load(command.ExecuteReader());
+                try
+                {
+                    table.Load(command.ExecuteReader());
+                }
+                catch (Exception ex)
+                {
+                    OnError(this, messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено.");
+                }
             }
             context.DBConnection.Close();
 

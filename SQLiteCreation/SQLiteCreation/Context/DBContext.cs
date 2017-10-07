@@ -7,6 +7,7 @@ namespace SQLiteCreation.Context
     class DBContext : IDBContext
     {
         public event Action<object, string> OnFatalError = (object o, string s) => { };
+        public event Action<object, string> OnError = (object o, string s) => { };
         public SQLiteConnection DBConnection { get; private set; }
         public string[] Headers { get; } = { "id", "dt", "product_id", "amount" };
         public string InsertionString { get; } = "insert into 'order' (id, dt, product_id, amount, dt_month) values (?1, ?2, ?3, ?4, strftime('%Y-%m', ?2))";
@@ -21,7 +22,7 @@ namespace SQLiteCreation.Context
             }
             catch (Exception ex)
             {
-                string message = $"В процессе работы с базой данных возникла ошибка.{Environment.NewLine}Подробности:"
+                string message = $"В процессе работы с базой данных возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}"
                                     + ex.Message + $"{Environment.NewLine}База данных создана неполностью.";
                 OnFatalError(this, message);
             }
@@ -33,7 +34,17 @@ namespace SQLiteCreation.Context
             using (SQLiteCommand command = new SQLiteCommand(DBConnection))
             {
                 command.CommandText = $"CREATE INDEX dt_index ON 'order' ({Headers[1]}_month, product_id);";
-                command.ExecuteNonQuery();
+                try
+                {
+                    command.ExecuteNonQuery();
+                }
+                catch (Exception ex)
+                {
+                    string message = $"При индексировании базы возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}"
+                                    + ex.Message + $"{Environment.NewLine}Индексы не созданы.";
+                    OnError(this, message);
+                }
+                
             }
             DBConnection.Close();
         }

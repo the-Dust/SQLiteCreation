@@ -10,6 +10,7 @@ namespace SQLiteCreation.Context.Base
     interface IDBContext
     {
         event Action<object, string> OnFatalError;
+        event Action<object, string> OnError;
 
         SQLiteConnection DBConnection { get; }
         string[] Headers { get; }
