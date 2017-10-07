@@ -1,4 +1,5 @@
 ﻿using SQLiteCreation.Context.Base;
+using SQLiteCreation.Events;
 using SQLiteCreation.Parsers.Base;
 using SQLiteCreation.Repositories.Base;
 using System;
@@ -13,8 +14,9 @@ namespace SQLiteCreation.Repositories
 {
     class Repository : AbstractRepository, IRepository
     {
-        public event Action<object, string> OnEvent = (object o, string s) => { };
-        public event Action<object, string> OnError = (object o, string s) => { };
+        public event EventHandler<SQLiteCreationEventArgs> OnEvent = (object sender, SQLiteCreationEventArgs e) => { };
+        public event EventHandler<SQLiteCreationEventArgs> OnError = (object sender, SQLiteCreationEventArgs e) => { };
+
         public IDBContext Context { get { return context; } }
 
         //Размер добавленной пачки строк, при котором происходит оповещение
@@ -35,7 +37,7 @@ namespace SQLiteCreation.Repositories
             catch (Exception ex)
             {
                 string message = $"При заполнении базы возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}";
-                OnError(this, messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено.");
+                OnError(this, new SQLiteCreationEventArgs(messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено."));
             }
             CreateIndexes();
         }
@@ -49,7 +51,7 @@ namespace SQLiteCreation.Repositories
             catch (Exception ex)
             {
                 string message = $"При заполнении базы возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}";
-                OnError(this, messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено.");
+                OnError(this, new SQLiteCreationEventArgs(messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено."));
             }
             CreateIndexes();
         }
@@ -62,8 +64,9 @@ namespace SQLiteCreation.Repositories
             Task t2 = Task.Run(() => DBFill(parser.ParametersQueue, parser.Cts));
             Task.WaitAll(t1, t2);
 
-            OnEvent(this, $"Операция заполнения базы данных завершена успешно.{Environment.NewLine}" +
-                $"Время заполнения базы (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
+            string message = $"Операция заполнения базы данных завершена успешно.{Environment.NewLine}" +
+                $"Время заполнения базы (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}";
+            OnEvent(this, new SQLiteCreationEventArgs(message));
         }
 
         private void DBFillMain(IEnumerable<SQLiteParameter[]> input, int cycleSize, CancellationTokenSource cts)
@@ -113,7 +116,7 @@ namespace SQLiteCreation.Repositories
                         if (stepOfCurrentCycle == cycleSize)
                         {
                             string message = $"\rДобавлено строк: {numberOfCycles * cycleSize}";
-                            OnEvent(this, message);
+                            OnEvent(this, new SQLiteCreationEventArgs(message));
                             numberOfCycles++;
                             stepOfCurrentCycle = 0;
                         }
@@ -122,7 +125,7 @@ namespace SQLiteCreation.Repositories
                     if (stepOfCurrentCycle != 0)
                     {
                         string message = $"\rДобавлено строк: {numberOfCycles * cycleSize + stepOfCurrentCycle}{Environment.NewLine}";
-                        OnEvent(this, message);
+                        OnEvent(this, new SQLiteCreationEventArgs(message));
                     }
                 }
                 transaction.Commit();
@@ -144,21 +147,21 @@ namespace SQLiteCreation.Repositories
             }
             catch (Exception ex)
             {
-                OnError(this, messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено.");
+                OnError(this, new SQLiteCreationEventArgs(messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено."));
             }
             context.DBConnection.Close();
 
-            OnEvent(this, $"Время выполнения запроса (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
+            OnEvent(this, new SQLiteCreationEventArgs($"Время выполнения запроса (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}"));
         }
 
         private void CreateIndexes()
         {
             DateTime startOfProcess = DateTime.Now;
 
-            OnEvent(this, "Индексируем базу...");
+            OnEvent(this, new SQLiteCreationEventArgs("Индексируем базу..."));
             context.CreateIndexes();
 
-            OnEvent(this, $"Готово.{Environment.NewLine}Время индексирования (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
+            OnEvent(this, new SQLiteCreationEventArgs($"Готово.{Environment.NewLine}Время индексирования (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}"));
         }
 
         private void ExecuteInnerQuery(string query)
@@ -184,12 +187,12 @@ namespace SQLiteCreation.Repositories
                 }
                 catch (Exception ex)
                 {
-                    OnError(this, messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено.");
+                    OnError(this, new SQLiteCreationEventArgs(messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено."));
                 }
             }
             context.DBConnection.Close();
 
-            OnEvent(this, $"Время выполнения запроса (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}");
+            OnEvent(this, new SQLiteCreationEventArgs($"Время выполнения запроса (мин:сек.сот): {(DateTime.Now - startOfProcess).ToString(@"mm\:ss\.ff")}{Environment.NewLine}"));
 
             return table;
         }
@@ -198,7 +201,7 @@ namespace SQLiteCreation.Repositories
         {
             var queryResult = context.StandardDBQuery.GetQuery(query);
 
-            OnEvent(this, $"{queryResult.Key}Выполняется запрос...{Environment.NewLine}");
+            OnEvent(this, new SQLiteCreationEventArgs($"{queryResult.Key}Выполняется запрос...{Environment.NewLine}"));
             return ExecuteQueryResult(queryResult.Value);
         }
     }

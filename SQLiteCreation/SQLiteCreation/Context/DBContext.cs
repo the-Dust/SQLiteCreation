@@ -1,4 +1,5 @@
 ﻿using SQLiteCreation.Context.Base;
+using SQLiteCreation.Events;
 using System;
 using System.Data.SQLite;
 
@@ -6,8 +7,8 @@ namespace SQLiteCreation.Context
 {
     class DBContext : IDBContext
     {
-        public event Action<object, string> OnFatalError = (object o, string s) => { };
-        public event Action<object, string> OnError = (object o, string s) => { };
+        public event EventHandler<SQLiteCreationEventArgs> OnFatalError = (object sender, SQLiteCreationEventArgs e) => { };
+        public event EventHandler<SQLiteCreationEventArgs> OnError = (object sender, SQLiteCreationEventArgs e) => { };
         public SQLiteConnection DBConnection { get; private set; }
         public string[] Headers { get; } = { "id", "dt", "product_id", "amount" };
         public string InsertionString { get; } = "insert into 'order' (id, dt, product_id, amount, dt_month) values (?1, ?2, ?3, ?4, strftime('%Y-%m', ?2))";
@@ -24,7 +25,7 @@ namespace SQLiteCreation.Context
             {
                 string message = $"В процессе работы с базой данных возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}"
                                     + ex.Message + $"{Environment.NewLine}База данных создана неполностью.";
-                OnFatalError(this, message);
+                OnFatalError(this, new SQLiteCreationEventArgs(message));
             }
         }
 
@@ -42,7 +43,7 @@ namespace SQLiteCreation.Context
                 {
                     string message = $"При индексировании базы возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}"
                                     + ex.Message + $"{Environment.NewLine}Индексы не созданы.";
-                    OnError(this, message);
+                    OnError(this, new SQLiteCreationEventArgs(message));
                 }
                 
             }

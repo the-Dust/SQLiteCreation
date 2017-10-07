@@ -1,4 +1,5 @@
 ﻿using Microsoft.VisualBasic.FileIO;
+using SQLiteCreation.Events;
 using SQLiteCreation.Parsers.Base;
 using System;
 using System.Collections.Concurrent;
@@ -13,10 +14,10 @@ namespace SQLiteCreation.Parsers
 {
     class Parser : IParser
     {
+        public event EventHandler<SQLiteCreationEventArgs> OnError = (object sender, SQLiteCreationEventArgs e) => { };
+        public event EventHandler<SQLiteCreationEventArgs> OnFatalError = (object sender, SQLiteCreationEventArgs e) => { };
         public ConcurrentQueue<SQLiteParameter[]> ParametersQueue { get; private set; }
         public CancellationTokenSource Cts { get; } = new CancellationTokenSource(); 
-        public event Action<object, string> OnError = (object o, string s) => { };
-        public event Action<object, string> OnFatalError = (object o, string s) => { };
         public Dictionary<string, int> ColumnNameAndPosition { get; private set; }
 
         private TextFieldParser tsvReader;
@@ -33,7 +34,7 @@ namespace SQLiteCreation.Parsers
             catch (Exception ex)
             {
                 string message = $"При обращении к текстовому файлу возникла ошибка.{Environment.NewLine}Подробности:" + ex.Message;
-                OnFatalError(this, message);
+                OnFatalError(this, new SQLiteCreationEventArgs(message));
             }
             this.parserDelimiters = parserDelimiters;
             this.headers = headers;
@@ -60,7 +61,7 @@ namespace SQLiteCreation.Parsers
                 {
                     string message1 = "В процессе чтения текстового файла возникла фатальная ошибка.{Environment.NewLine}Подробности:";
                     string message2 = "База данных создана неполностью.";
-                    OnFatalError(this, message1+ ex.Message+ Environment.NewLine+ message2);
+                    OnFatalError(this, new SQLiteCreationEventArgs(message1 + ex.Message+ Environment.NewLine+ message2));
                     return;
                 }
 
@@ -70,7 +71,7 @@ namespace SQLiteCreation.Parsers
                 //Проверяем данные в считанной строке, при наличии ошибок выводим их на консоль и пишем в лог ошибок
                 if (!dvs.Verify(ColumnNameAndPosition, parsedStringArray, parameters, sourceCounter, ref errorMessage))
                 {
-                    OnError(this, errorMessage);
+                    OnError(this, new SQLiteCreationEventArgs(errorMessage));
                     sw.WriteLine(errorMessage);
                     continue;
                 }
@@ -113,7 +114,7 @@ namespace SQLiteCreation.Parsers
                 string message1 = $"В текстовом файле отсутствуют следующие столбцы:{Environment.NewLine}";
                 string[] missingColumns = ColumnNameAndPosition.Where(x => x.Value == -1).Select(x => x.Key).ToArray();
                 string message2 = string.Join(Environment.NewLine, missingColumns);
-                OnFatalError(this, message1 + message2);
+                OnFatalError(this, new SQLiteCreationEventArgs(message1 + message2));
             }
         }
     }

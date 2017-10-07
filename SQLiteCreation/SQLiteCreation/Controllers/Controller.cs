@@ -1,15 +1,16 @@
-﻿using SQLiteCreation.Controllers.Base;
+﻿using SQLiteCreation.Context;
+using SQLiteCreation.Context.Base;
+using SQLiteCreation.Controllers.Base;
 using SQLiteCreation.DataWiewers;
 using SQLiteCreation.DataWiewers.Base;
+using SQLiteCreation.Events;
 using SQLiteCreation.Parsers;
 using SQLiteCreation.Parsers.Base;
 using SQLiteCreation.Repositories;
 using SQLiteCreation.Repositories.Base;
-using SQLiteCreation.Context.Base;
 using System;
 using System.Data;
 using System.Threading;
-using SQLiteCreation.Context;
 
 namespace SQLiteCreation.Controllers
 {
@@ -30,6 +31,7 @@ namespace SQLiteCreation.Controllers
             repository.OnEvent += EventHandling;
             repository.OnError += ErrorHandling;
             repository.Context.OnFatalError += FatalErrorHandling;
+            repository.Context.OnError += ErrorHandling;
             //parser.OnError+= ErrorHandling;
             parser.OnFatalError += FatalErrorHandling;
         }
@@ -39,19 +41,19 @@ namespace SQLiteCreation.Controllers
             repository.DBFill(parser);
         }
 
-        public void ErrorHandling(object sender, string message)
+        public void ErrorHandling(object sender, SQLiteCreationEventArgs e)
         {
-            viewer.ViewData(message);
+            viewer.ViewData(e.Message);
         }
 
-        public void EventHandling(object sender, string message)
+        public void EventHandling(object sender, SQLiteCreationEventArgs e)
         {
-            viewer.ViewData(message);
+            viewer.ViewData(e.Message);
         }
 
-        public void FatalErrorHandling(object sender, string message)
+        public void FatalErrorHandling(object sender, SQLiteCreationEventArgs e)
         {
-            viewer.ViewData(message);
+            viewer.ViewData(e.Message);
             Thread.Sleep(3000);
             Environment.Exit(0);
         }

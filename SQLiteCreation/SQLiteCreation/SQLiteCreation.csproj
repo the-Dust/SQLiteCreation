@@ -66,6 +66,7 @@
     <Compile Include="Repositories\Base\AbstractRepository.cs" />
     <Compile Include="Repositories\Base\IRepository.cs" />
     <Compile Include="Repositories\Repository.cs" />
+    <Compile Include="Events\SQLiteCreationEventArgs.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

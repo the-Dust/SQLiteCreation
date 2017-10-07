@@ -1,5 +1,4 @@
-﻿using SQLiteCreation.Controllers;
-using SQLiteCreation.Controllers.Base;
+﻿using SQLiteCreation.Controllers.Base;
 using System;
 using System.Configuration;
 using System.IO;

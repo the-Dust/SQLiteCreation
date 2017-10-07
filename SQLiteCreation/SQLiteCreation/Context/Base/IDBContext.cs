@@ -1,4 +1,5 @@
-﻿using System;
+﻿using SQLiteCreation.Events;
+using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.Linq;
@@ -9,8 +10,8 @@ namespace SQLiteCreation.Context.Base
 {
     interface IDBContext
     {
-        event Action<object, string> OnFatalError;
-        event Action<object, string> OnError;
+        event EventHandler<SQLiteCreationEventArgs> OnFatalError;
+        event EventHandler<SQLiteCreationEventArgs> OnError;
 
         SQLiteConnection DBConnection { get; }
         string[] Headers { get; }
