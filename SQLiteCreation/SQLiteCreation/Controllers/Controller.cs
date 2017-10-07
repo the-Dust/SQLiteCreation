@@ -5,9 +5,11 @@ using SQLiteCreation.Parsers;
 using SQLiteCreation.Parsers.Base;
 using SQLiteCreation.Repositories;
 using SQLiteCreation.Repositories.Base;
+using SQLiteCreation.Context.Base;
 using System;
 using System.Data;
 using System.Threading;
+using SQLiteCreation.Context;
 
 namespace SQLiteCreation.Controllers
 {
@@ -18,9 +20,10 @@ namespace SQLiteCreation.Controllers
         private IDataViewer viewer;
         private int cycleSize;
 
-        public Controller(string pathToFile, int cycleSize = 20000, string dbFilename = "MyDatabase.sqlite")
+        public Controller(string pathToFile, int cycleSize, string dbFilename)
         {
-            repository = new Repository(dbFilename);
+            IDBContext context = new DBContext(new DBQuery(), dbFilename);
+            repository = new Repository(context, cycleSize);
             parser = new Parser(pathToFile, new string[] { "\t" }, repository.Context.Headers, new DataVerificationStrategy());
             viewer = new DataViewer(Console.Write, Console.ReadLine);
             this.cycleSize = cycleSize;

@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SQLite;
 using System.Threading;
+using SQLiteCreation.Context.Base;
 
 namespace SQLiteCreation.Repositories.Base
 {
@@ -19,14 +20,6 @@ namespace SQLiteCreation.Repositories.Base
         DataTable ExecuteQueryResult(StandardQueries query);
         event Action<object, string> OnError;
         event Action<object, string> OnEvent;
-        DBContext Context { get; }
-    }
-
-    enum StandardQueries
-    {
-        First,
-        SecondA,
-        SecondB,
-        Third
+        IDBContext Context { get; }
     }
 }

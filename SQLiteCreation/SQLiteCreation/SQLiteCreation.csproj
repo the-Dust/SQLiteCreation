@@ -36,6 +36,7 @@
   <ItemGroup>
     <Reference Include="Microsoft.VisualBasic" />
     <Reference Include="System" />
+    <Reference Include="System.Configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data.SQLite">
       <HintPath>C:\Users\Dust\Desktop\Новая папка\System.Data.SQLite.dll</HintPath>
@@ -48,7 +49,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Context\Base\IDBContext.cs" />
+    <Compile Include="Context\Base\IDBQuery.cs" />
     <Compile Include="Context\DBContext.cs" />
+    <Compile Include="Context\DBQuery.cs" />
     <Compile Include="Controllers\Controller.cs" />
     <Compile Include="Controllers\Base\IController.cs" />
     <Compile Include="DataWiewers\DataViewer.cs" />

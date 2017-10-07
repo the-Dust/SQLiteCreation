@@ -1,17 +1,18 @@
 ﻿using SQLiteCreation.Context;
+using SQLiteCreation.Context.Base;
 
 namespace SQLiteCreation.Repositories.Base
 {
     abstract class AbstractRepository
     {
-        protected DBContext context;
+        protected IDBContext context;
 
-        protected AbstractRepository(string dbName)
+        protected AbstractRepository(IDBQuery query, string dbName)
         {
-            context = new DBContext(dbName);
+            context = new DBContext(query, dbName);
         }
 
-        protected AbstractRepository(DBContext context)
+        protected AbstractRepository(IDBContext context)
         {
             this.context = context;
         }

@@ -1,18 +1,20 @@
-﻿using System;
+﻿using SQLiteCreation.Context.Base;
+using System;
 using System.Data.SQLite;
 
 namespace SQLiteCreation.Context
 {
-    class DBContext
+    class DBContext : IDBContext
     {
         public event Action<object, string> OnFatalError = (object o, string s) => { };
         public SQLiteConnection DBConnection { get; private set; }
         public string[] Headers { get; } = { "id", "dt", "product_id", "amount" };
         public string InsertionString { get; } = "insert into 'order' (id, dt, product_id, amount, dt_month) values (?1, ?2, ?3, ?4, strftime('%Y-%m', ?2))";
-        public string InsertionTemplate { get; } = "({0},'{1}',{2},{3}),";
+        public IDBQuery StandardDBQuery { get; }
 
-        public DBContext(string dbName = "MyDatabase.sqlite")
+        public DBContext(IDBQuery standardDBQuery, string dbName = "MyDatabase.sqlite")
         {
+            StandardDBQuery = standardDBQuery;
             try
             {
                 DBSetup(dbName);
