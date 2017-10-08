@@ -36,8 +36,7 @@ namespace SQLiteCreation.Repositories
             }
             catch (Exception ex)
             {
-                string message = $"При заполнении базы возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}";
-                OnError(this, new SQLiteCreationEventArgs(messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено."));
+                CatchingDBException(ex);
             }
             CreateIndexes();
         }
@@ -50,8 +49,7 @@ namespace SQLiteCreation.Repositories
             }
             catch (Exception ex)
             {
-                string message = $"При заполнении базы возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}";
-                OnError(this, new SQLiteCreationEventArgs(messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено."));
+                CatchingDBException(ex);
             }
             CreateIndexes();
         }
@@ -81,6 +79,7 @@ namespace SQLiteCreation.Repositories
 
             Func<bool> Condition;
             Func<SQLiteParameter[]> GetData;
+            IEnumerator<SQLiteParameter[]> enumerator = input.GetEnumerator();
 
             if (input is ConcurrentQueue<SQLiteParameter[]>)
             {
@@ -94,8 +93,8 @@ namespace SQLiteCreation.Repositories
             }
             else
             {
-                Condition = () => input.GetEnumerator().MoveNext();
-                GetData = () =>input.GetEnumerator().Current;
+                Condition = () => enumerator.MoveNext();
+                GetData = () => enumerator.Current;
             }
 
             using (SQLiteTransaction transaction = context.DBConnection.BeginTransaction())
@@ -170,6 +169,13 @@ namespace SQLiteCreation.Repositories
             {
                 command.ExecuteNonQuery();
             }
+        }
+
+        private void CatchingDBException(Exception ex)
+        {
+            string message = $"При заполнении базы возникла ошибка.{Environment.NewLine}Подробности:{Environment.NewLine}";
+            OnError(this, new SQLiteCreationEventArgs(messageOnError + ex.Message + $"{Environment.NewLine}Действие не выполнено."));
+            context.DBConnection.Close();
         }
 
         public DataTable ExecuteQueryResult(string query)
