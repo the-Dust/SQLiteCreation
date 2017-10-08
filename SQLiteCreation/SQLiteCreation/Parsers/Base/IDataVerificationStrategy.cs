@@ -1,13 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.Collections.Generic;
+using System.Data.SQLite;
 
 namespace SQLiteCreation.Parsers.Base
 {
     interface IDataVerificationStrategy
     {
-        bool Verify(Dictionary<string, int> columnPosition, string[] inputData, int counter, ref string message);
+        int ParametersCount { get; }
+
+        bool Verify(Dictionary<string, int> columnPosition, string[] inputData, SQLiteParameter[] parameters, int counter, ref string message);
     }
 }

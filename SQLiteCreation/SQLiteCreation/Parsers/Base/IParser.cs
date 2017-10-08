@@ -1,8 +1,7 @@
-﻿using System;
+﻿using SQLiteCreation.Events;
+using System;
 using System.Collections.Concurrent;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
+using System.Data.SQLite;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,10 +9,11 @@ namespace SQLiteCreation.Parsers.Base
 {
     interface IParser
     {
-        ConcurrentQueue<string[]> StringArrayQueue { get; }
+        event EventHandler<SQLiteCreationEventArgs> OnError;
+        event EventHandler<SQLiteCreationEventArgs> OnFatalError;
+
+        ConcurrentQueue<SQLiteParameter[]> ParametersQueue { get; }
         CancellationTokenSource Cts { get; }
-        event Action<object, string> OnError;
-        event Action<object, string> OnFatalError;
 
         void Parse();
         Task ParseAsync();

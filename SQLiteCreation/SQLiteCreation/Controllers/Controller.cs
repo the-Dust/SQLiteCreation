@@ -1,6 +1,9 @@
-﻿using SQLiteCreation.Controllers.Base;
+﻿using SQLiteCreation.Context;
+using SQLiteCreation.Context.Base;
+using SQLiteCreation.Controllers.Base;
 using SQLiteCreation.DataWiewers;
 using SQLiteCreation.DataWiewers.Base;
+using SQLiteCreation.Events;
 using SQLiteCreation.Parsers;
 using SQLiteCreation.Parsers.Base;
 using SQLiteCreation.Repositories;
@@ -18,37 +21,39 @@ namespace SQLiteCreation.Controllers
         private IDataViewer viewer;
         private int cycleSize;
 
-        public Controller(string pathToFile, int cycleSize = 20000, string dbFilename = "MyDatabase.sqlite")
+        public Controller(string pathToFile, int cycleSize, string dbFilename)
         {
-            repository = new Repository(dbFilename);
+            IDBContext context = new DBContext(new DBQuery(), dbFilename);
+            repository = new Repository(context, cycleSize);
             parser = new Parser(pathToFile, new string[] { "\t" }, repository.Context.Headers, new DataVerificationStrategy());
             viewer = new DataViewer(Console.Write, Console.ReadLine);
             this.cycleSize = cycleSize;
             repository.OnEvent += EventHandling;
             repository.OnError += ErrorHandling;
             repository.Context.OnFatalError += FatalErrorHandling;
+            repository.Context.OnError += ErrorHandling;
             //parser.OnError+= ErrorHandling;
             parser.OnFatalError += FatalErrorHandling;
         }
 
         public void FillDataBase()
         {
-            repository.DBFill(parser, cycleSize);
+            repository.DBFill(parser);
         }
 
-        public void ErrorHandling(object sender, string message)
+        public void ErrorHandling(object sender, SQLiteCreationEventArgs e)
         {
-            viewer.ViewData(message);
+            viewer.ViewData(e.Message);
         }
 
-        public void EventHandling(object sender, string message)
+        public void EventHandling(object sender, SQLiteCreationEventArgs e)
         {
-            viewer.ViewData(message);
+            viewer.ViewData(e.Message);
         }
 
-        public void FatalErrorHandling(object sender, string message)
+        public void FatalErrorHandling(object sender, SQLiteCreationEventArgs e)
         {
-            viewer.ViewData(message);
+            viewer.ViewData(e.Message);
             Thread.Sleep(3000);
             Environment.Exit(0);
         }
